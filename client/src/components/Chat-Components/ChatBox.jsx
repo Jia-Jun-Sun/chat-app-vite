@@ -8,7 +8,7 @@ const socket= io("http://localhost:5001"); // Creates a connection to the Socket
 
 
 // defines a React functional component called ChatBox
-const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: id of the chat session | otherUser: name of person you're chatting with (displayed in the header)
+const ChatBox = ({ chatId, otherUser, currentUser }) => { // it takes in two props. chatId: id of the chat session | otherUser: name of person you're chatting with (displayed in the header) | currentUser: the current user
     // the state variables
     const [messages, setMessages] = useState([]); // Messages: stores the chat history. Initialy it will be an empty array, because there's no messages in it yet | setMessages: function to update 'messages' states, or add new messages to the array "messages"
     const [newMessage, setNewMessage] = useState(""); // newMessage: stores the new message typed by the user in the input box | setNewMessage: function to update newMessage
@@ -25,8 +25,8 @@ const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: i
 
     // Listening for incoming messages via Socket.io
     useEffect(() => {
-        socket.on("receiveMessage", () => { // listens for an event omitted from the server called "receiveMessage"
-            setMessages(prevMessages => [...prevMessages, message]); // uses setMessages to update the messages array. when setMessages is called, messages transforms in to prevMessages, then the new "message" from the backend is added to prevMessages, then prevMessages transforms back into messages
+        socket.on("receiveMessage", (msg) => { // listens for an event omitted from the server called "receiveMessage"
+            setMessages(prevMessages => [...prevMessages, msg]); // uses setMessages to update the messages array. when setMessages is called, messages transforms in to prevMessages, then the new "message" from the backend is added to prevMessages, then prevMessages transforms back into messages
         });
 
         // clean up function that removes the event listener
@@ -44,13 +44,23 @@ const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: i
         // creates a message object to structure and organize the message before sending it to the server. Ensuring that every message has chat ID, sender, the text message, and time stamp of that text
         const messageData = {
             chatId, // identifies which chat the message belongs to
-            sender: "me", // ho is sending the message (in this case, 'me'), we can also replace "me" with the user ID from authentication later
+            sender: currentUser, // who is sending the message (in this case, 'me'), we can also replace "me" with the user ID from authentication later
             text: newMessage, // actual text user typed
             timestamp: new Date().toISOString() // the time the message was sent
         };
 
         // Emit message to server using Socket.io emit()
-        socket.emit("sendMessages", messageData) // "sendMessages" is the event we are emiting to the server, the messageData is the message object
+        socket.emit("sendMessage", messageData) // "sendMessages" is the event we are emiting to the server, the messageData is the message object
+
+
+        // TEST - Send the message to the backend via Axios
+        axios.post("http://localhost:5001/api/chats/messages", messageData)
+            .then(response => {
+                console.log("Message saved:", response.data);
+            })
+            .catch(error => {
+                console.error("Error saving message:", error);
+            });
 
 
         // update ui immediately
@@ -61,16 +71,15 @@ const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: i
 
     // displaying the UI
     return (
-        <div>
+        <div className="flex flex-col h-full p-4">
             {/* Header */}
-            <header>
+            <header className="p-4 bg-gray-800 text-white text-lg font-bold rounded-t-lg">
                 {otherUser}
             </header>
 
 
             {/* Messages */}
-            <div>
-                {/* how do I display the contents of the sent and received messages, with our messages on the right, and their messages on the left? */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 {messages.map((msg, index) => (
                     <div
                         key={index}
@@ -88,7 +97,7 @@ const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: i
 
 
             {/* Input Box */}
-            <div className="flex item-center border-t bg-white p-2">
+            <div className="flex items-center border-t bg-white p-2">
                 <input
                     type="text"
                     className="flex-1 border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -96,7 +105,10 @@ const ChatBox = ({ chatId, otherUser }) => { // it takes in two props. chatId: i
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
                 />
-                <button className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button
+                    className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    onClick={sendMessage}
+                >
                     send
                 </button>
             </div>
